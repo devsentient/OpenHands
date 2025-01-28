@@ -189,10 +189,13 @@ class DockerRuntime(ActionExecutionClient):
         self.log('debug', 'Preparing to start container...')
         self.send_status_message('STATUS$PREPARING_CONTAINER')
 
-        self._host_port = 30001
+        self._host_port = self._find_available_port(EXECUTION_SERVER_PORT_RANGE)
         self._container_port = self._host_port
         self._vscode_port = 40001
-        self._app_ports = [50001, 55001]
+        self._app_ports = [
+            self._find_available_port(APP_PORT_RANGE_1),
+            self._find_available_port(APP_PORT_RANGE_2),
+        ]
         self.api_url = f'{self.config.sandbox.local_runtime_url}:{self._container_port}'
 
         use_host_network = self.config.sandbox.use_host_network
@@ -206,9 +209,7 @@ class DockerRuntime(ActionExecutionClient):
             }
 
             if self.vscode_enabled:
-                port_mapping[f'{self._vscode_port}/tcp'] = [
-                    {'HostPort': str(self._vscode_port)}
-                ]
+                port_mapping[f'{self._vscode_port}/tcp'] = [{'HostPort': '40001'}]
 
             for port in self._app_ports:
                 port_mapping[f'{port}/tcp'] = [{'HostPort': str(port)}]
