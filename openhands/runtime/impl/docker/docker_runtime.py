@@ -308,6 +308,7 @@ class DockerRuntime(ActionExecutionClient):
         self._container_port = 11000
         self._vscode_port = 12000
         self._app_ports = [13000, 14000]
+        self._host_port = self._container_port
         self.api_url = f'{self.config.sandbox.local_runtime_url}:{self._container_port}'
         self.log(
             'debug',
