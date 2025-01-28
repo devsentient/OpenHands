@@ -304,10 +304,19 @@ class DockerRuntime(ActionExecutionClient):
 
     def _attach_to_container(self):
         self.container = self.docker_client.containers.get(self.container_name)
-        self._host_port = 10000
-        self._container_port = 11000
-        self._vscode_port = 12000
-        self._app_ports = [13000, 14000]
+        for port in self.container.attrs['NetworkSettings']['Ports']:  # type: ignore
+            port = int(port.split('/')[0])
+            if (
+                port >= EXECUTION_SERVER_PORT_RANGE[0]
+                and port <= EXECUTION_SERVER_PORT_RANGE[1]
+            ):
+                self._container_port = port
+            if port >= VSCODE_PORT_RANGE[0] and port <= VSCODE_PORT_RANGE[1]:
+                self._vscode_port = port
+            elif port >= APP_PORT_RANGE_1[0] and port <= APP_PORT_RANGE_1[1]:
+                self._app_ports.append(port)
+            elif port >= APP_PORT_RANGE_2[0] and port <= APP_PORT_RANGE_2[1]:
+                self._app_ports.append(port)
         self._host_port = self._container_port
         self.api_url = f'{self.config.sandbox.local_runtime_url}:{self._container_port}'
         self.log(
