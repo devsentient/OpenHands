@@ -1,4 +1,5 @@
 import atexit
+import os
 from functools import lru_cache
 from typing import Callable
 
@@ -188,13 +189,10 @@ class DockerRuntime(ActionExecutionClient):
         self.log('debug', 'Preparing to start container...')
         self.send_status_message('STATUS$PREPARING_CONTAINER')
 
-        self._host_port = self._find_available_port(EXECUTION_SERVER_PORT_RANGE)
-        self._container_port = self._host_port
-        self._vscode_port = self._find_available_port(VSCODE_PORT_RANGE)
-        self._app_ports = [
-            self._find_available_port(APP_PORT_RANGE_1),
-            self._find_available_port(APP_PORT_RANGE_2),
-        ]
+        self._host_port = 10000
+        self._container_port = 11000
+        self._vscode_port = 12000
+        self._app_ports = [13000, 14000]
         self.api_url = f'{self.config.sandbox.local_runtime_url}:{self._container_port}'
 
         use_host_network = self.config.sandbox.use_host_network
@@ -306,20 +304,10 @@ class DockerRuntime(ActionExecutionClient):
 
     def _attach_to_container(self):
         self.container = self.docker_client.containers.get(self.container_name)
-        for port in self.container.attrs['NetworkSettings']['Ports']:  # type: ignore
-            port = int(port.split('/')[0])
-            if (
-                port >= EXECUTION_SERVER_PORT_RANGE[0]
-                and port <= EXECUTION_SERVER_PORT_RANGE[1]
-            ):
-                self._container_port = port
-            if port >= VSCODE_PORT_RANGE[0] and port <= VSCODE_PORT_RANGE[1]:
-                self._vscode_port = port
-            elif port >= APP_PORT_RANGE_1[0] and port <= APP_PORT_RANGE_1[1]:
-                self._app_ports.append(port)
-            elif port >= APP_PORT_RANGE_2[0] and port <= APP_PORT_RANGE_2[1]:
-                self._app_ports.append(port)
-        self._host_port = self._container_port
+        self._host_port = 10000
+        self._container_port = 11000
+        self._vscode_port = 12000
+        self._app_ports = [13000, 14000]
         self.api_url = f'{self.config.sandbox.local_runtime_url}:{self._container_port}'
         self.log(
             'debug',
@@ -387,11 +375,12 @@ class DockerRuntime(ActionExecutionClient):
 
     @property
     def vscode_url(self) -> str | None:
+        domain = os.getenv('HYPERPLANE_DOMAIN', 'localhost:3000')
         token = super().get_vscode_token()
         if not token:
             return None
 
-        vscode_url = f'http://openhands-code-{self._vscode_port}.dev-linux.canopyhub.io/?tkn={token}&folder={self.config.workspace_mount_path_in_sandbox}'
+        vscode_url = f'https://openhands-code.{domain}/?tkn={token}&folder={self.config.workspace_mount_path_in_sandbox}'
         return vscode_url
 
     @property
