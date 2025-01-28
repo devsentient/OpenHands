@@ -189,10 +189,10 @@ class DockerRuntime(ActionExecutionClient):
         self.log('debug', 'Preparing to start container...')
         self.send_status_message('STATUS$PREPARING_CONTAINER')
 
-        self._host_port = 10000
+        self._host_port = 30001
         self._container_port = self._host_port
-        self._vscode_port = 12000
-        self._app_ports = [13000, 14000]
+        self._vscode_port = 40001
+        self._app_ports = [50001, 55001]
         self.api_url = f'{self.config.sandbox.local_runtime_url}:{self._container_port}'
 
         use_host_network = self.config.sandbox.use_host_network
