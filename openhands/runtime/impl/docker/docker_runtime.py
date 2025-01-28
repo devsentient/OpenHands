@@ -392,6 +392,10 @@ class DockerRuntime(ActionExecutionClient):
             return None
 
         vscode_url = f'https://openhands-code.{domain}/?tkn={token}&folder={self.config.workspace_mount_path_in_sandbox}'
+        self.log(
+            'info',
+            f'{vscode_url}',
+        )
         return vscode_url
 
     @property
