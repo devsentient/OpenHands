@@ -31,7 +31,7 @@ from openhands.utils.tenacity_stop import stop_if_should_exit
 CONTAINER_NAME_PREFIX = 'openhands-runtime-'
 
 EXECUTION_SERVER_PORT_RANGE = (39998, 39999)
-VSCODE_PORT_RANGE = (40000, 40001)
+VSCODE_PORT_RANGE = (40000, 40000)
 APP_PORT_RANGE_1 = (40002, 40003)
 APP_PORT_RANGE_2 = (40004, 40005)
 
@@ -398,7 +398,7 @@ class DockerRuntime(ActionExecutionClient):
         vscode_url = f'{domain}/?tkn={token}&folder={self.config.workspace_mount_path_in_sandbox}'
         self.log(
             'info',
-            f'========== VSCode URL: {vscode_url} *** VSCode Internal Port: {self._vscode_port} =========='
+            f'VSCode URL: {vscode_url} *** VSCode Internal Port: {self._vscode_port}'
         )
         return vscode_url
 
