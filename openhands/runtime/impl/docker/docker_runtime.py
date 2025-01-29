@@ -390,7 +390,7 @@ class DockerRuntime(ActionExecutionClient):
         if domain is None:
             domain = f"http://localhost:{self._vscode_port}"
         else: 
-            domain = f"https://openhands-code.{domain}"
+            domain = f"http://openhands-code-{self._vscode_port}.{domain}"
         token = super().get_vscode_token()
         if not token:
             return None
