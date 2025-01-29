@@ -399,6 +399,7 @@ class DockerRuntime(ActionExecutionClient):
         self.log(
             'info',
             f'{vscode_url}',
+            f'VSCode Internal Port: {self._vscode_port}'
         )
         return vscode_url
 
