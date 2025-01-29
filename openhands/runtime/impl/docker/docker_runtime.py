@@ -30,10 +30,10 @@ from openhands.utils.tenacity_stop import stop_if_should_exit
 
 CONTAINER_NAME_PREFIX = 'openhands-runtime-'
 
-EXECUTION_SERVER_PORT_RANGE = (30000, 39999)
-VSCODE_PORT_RANGE = (40000, 49999)
-APP_PORT_RANGE_1 = (50000, 54999)
-APP_PORT_RANGE_2 = (55000, 59999)
+EXECUTION_SERVER_PORT_RANGE = (39998, 39999)
+VSCODE_PORT_RANGE = (40000, 40001)
+APP_PORT_RANGE_1 = (40002, 40003)
+APP_PORT_RANGE_2 = (40004, 40005)
 
 
 def remove_all_runtime_containers():
@@ -191,7 +191,7 @@ class DockerRuntime(ActionExecutionClient):
 
         self._host_port = self._find_available_port(EXECUTION_SERVER_PORT_RANGE)
         self._container_port = self._host_port
-        self._vscode_port = 40001
+        self._vscode_port = self._find_available_port(VSCODE_PORT_RANGE)
         self._app_ports = [
             self._find_available_port(APP_PORT_RANGE_1),
             self._find_available_port(APP_PORT_RANGE_2),
