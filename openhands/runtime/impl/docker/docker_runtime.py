@@ -2,6 +2,7 @@ from functools import lru_cache
 from typing import Callable
 from uuid import UUID
 
+import os
 import docker
 import requests
 import tenacity
@@ -386,10 +387,14 @@ class DockerRuntime(ActionExecutionClient):
     @property
     def vscode_url(self) -> str | None:
         token = super().get_vscode_token()
+        domain = os.getenv("DOMAIN", None)
         if not token:
             return None
+        
+        if not domain:
+            return f'http://localhost:{self._vscode_port}/?tkn={token}&folder={self.config.workspace_mount_path_in_sandbox}'
 
-        vscode_url = f'http://localhost:{self._vscode_port}/?tkn={token}&folder={self.config.workspace_mount_path_in_sandbox}'
+        vscode_url = f'http://openhands-code-{self._vscode_port}.{domain}/?tkn={token}&folder={self.config.workspace_mount_path_in_sandbox}'
         return vscode_url
 
     @property
