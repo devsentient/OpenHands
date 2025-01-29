@@ -398,8 +398,7 @@ class DockerRuntime(ActionExecutionClient):
         vscode_url = f'{domain}/?tkn={token}&folder={self.config.workspace_mount_path_in_sandbox}'
         self.log(
             'info',
-            f'{vscode_url}',
-            f'VSCode Internal Port: {self._vscode_port}'
+            f'========== VSCode URL: {vscode_url} *** VSCode Internal Port: {self._vscode_port} =========='
         )
         return vscode_url
 
