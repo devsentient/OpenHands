@@ -58,7 +58,7 @@ class InMemoryRateLimiter:
     seconds: int
     sleep_seconds: int
 
-    def __init__(self, requests: int = 10, seconds: int = 1, sleep_seconds: int = 1):
+    def __init__(self, requests: int = 2, seconds: int = 1, sleep_seconds: int = 1):
         self.requests = requests
         self.seconds = seconds
         self.sleep_seconds = sleep_seconds
