@@ -386,12 +386,16 @@ class DockerRuntime(ActionExecutionClient):
 
     @property
     def vscode_url(self) -> str | None:
-        domain = os.getenv('HYPERPLANE_DOMAIN', 'localhost:3000')
+        domain = os.getenv('HYPERPLANE_DOMAIN', None)  
+        if domain is None:
+            domain = f"http://localhost:{self._vscode_port}"
+        else: 
+            domain = f"https://openhands-code.{domain}"
         token = super().get_vscode_token()
         if not token:
             return None
 
-        vscode_url = f'https://openhands-code.{domain}/?tkn={token}&folder={self.config.workspace_mount_path_in_sandbox}'
+        vscode_url = f'{domain}/?tkn={token}&folder={self.config.workspace_mount_path_in_sandbox}'
         self.log(
             'info',
             f'{vscode_url}',
