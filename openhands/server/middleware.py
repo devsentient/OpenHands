@@ -96,13 +96,13 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self.rate_limiter = rate_limiter
 
     async def dispatch(self, request, call_next):
-        ok = await self.rate_limiter(request)
-        if not ok:
-            return JSONResponse(
-                status_code=429,
-                content={'message': 'Too many requests'},
-                headers={'Retry-After': '1'},
-            )
+        # ok = await self.rate_limiter(request)
+        # if not ok:
+        #     return JSONResponse(
+        #         status_code=429,
+        #         content={'message': 'Too many requests'},
+        #         headers={'Retry-After': '1'},
+        #     )
         return await call_next(request)
 
 
