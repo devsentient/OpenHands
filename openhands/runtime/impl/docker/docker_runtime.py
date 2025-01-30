@@ -393,8 +393,15 @@ class DockerRuntime(ActionExecutionClient):
         
         if not domain:
             return f'http://localhost:{self._vscode_port}/?tkn={token}&folder={self.config.workspace_mount_path_in_sandbox}'
+        
+        def port_to_letters(port):
+            result = []
+            while port:
+                port, remainder = divmod(port, 26)
+                result.append(chr(97 + remainder))  # 'a' = 97 in ASCII
+            return ''.join(reversed(result))
 
-        vscode_url = f'http://openhands-code-{self._vscode_port}.{domain}/?tkn={token}&folder={self.config.workspace_mount_path_in_sandbox}'
+        vscode_url = f'http://openhandscode{port_to_letters(self._vscode_port)}.{domain}/?tkn={token}&folder={self.config.workspace_mount_path_in_sandbox}'
         return vscode_url
 
     @property
