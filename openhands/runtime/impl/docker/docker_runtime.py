@@ -401,7 +401,7 @@ class DockerRuntime(ActionExecutionClient):
                 result.append(chr(97 + remainder))  # 'a' = 97 in ASCII
             return ''.join(reversed(result))
 
-        vscode_url = f'http://openhands-{port_to_letters(self._vscode_port)}.{domain}/?tkn={token}&folder={self.config.workspace_mount_path_in_sandbox}'
+        vscode_url = f'http://openhands-code-{port_to_letters(self._vscode_port)}.{domain}/?tkn={token}&folder={self.config.workspace_mount_path_in_sandbox}'
         return vscode_url
 
     @property
