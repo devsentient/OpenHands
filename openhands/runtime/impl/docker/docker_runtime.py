@@ -291,6 +291,7 @@ class DockerRuntime(ActionExecutionClient):
             self._find_available_port(APP_PORT_RANGE_1),
             self._find_available_port(APP_PORT_RANGE_2),
         ]
+        self._app_ports_bkup = self._app_ports.copy()
         self.log(
             'info',
             f'Container app_ports={self._app_ports}',
@@ -559,8 +560,12 @@ class DockerRuntime(ActionExecutionClient):
             hosts[f'http://{host_addr}:{port}'] = port
 
         self.log(
-            'info',
+            'warn',
             f'Web hosts: {hosts}, host_addr: {host_addr}, app_ports: {self._app_ports}',
+        )
+        self.log(
+            'warn',
+            f'Web hosts: {hosts}, host_addr: {host_addr}, app_ports: {self._app_ports_bkup}',
         )
         return hosts
 
