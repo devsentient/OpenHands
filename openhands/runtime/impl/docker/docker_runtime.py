@@ -101,7 +101,6 @@ class DockerRuntime(ActionExecutionClient):
         self._container_port = -1
         self._vscode_port = -1
         self._app_ports: list[int] = []
-        self._app_ports_bkup: list[int] = []
 
         if os.environ.get('DOCKER_HOST_ADDR'):
             logger.info(
@@ -145,8 +144,6 @@ class DockerRuntime(ActionExecutionClient):
 
     @property
     def action_execution_server_url(self) -> str:
-        # return f'http://127.0.0.1:{self._container_port}'
-        # return f'http://localhost:{self._container_port}'
         return self.api_url
 
     async def connect(self) -> None:
@@ -292,7 +289,6 @@ class DockerRuntime(ActionExecutionClient):
             self._find_available_port(APP_PORT_RANGE_1),
             self._find_available_port(APP_PORT_RANGE_2),
         ]
-        self._app_ports_bkup = self._app_ports.copy()
         self.log(
             'info',
             f'Shakudo init_container: Container app_ports={self._app_ports}',
@@ -438,7 +434,6 @@ class DockerRuntime(ActionExecutionClient):
                     if port not in self._app_ports:
                         self._app_ports.append(port)
             self._app_ports.sort()
-            self._app_ports_bkup = self._app_ports.copy()
 
         self.log(
             'info',
@@ -596,10 +591,6 @@ class DockerRuntime(ActionExecutionClient):
         self.log(
             'warn',
             f'Shakudo: Web hosts: {hosts}, app_ports: {self._app_ports}',
-        )
-        self.log(
-            'warn',
-            f'Shakudo: web_hosts: bkup_app_ports: {self._app_ports_bkup}',
         )
         return hosts
 
