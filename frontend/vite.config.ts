@@ -5,6 +5,7 @@ import viteTsconfigPaths from "vite-tsconfig-paths";
 import svgr from "vite-plugin-svgr";
 import { reactRouter } from "@react-router/dev/vite";
 import { configDefaults } from "vitest/config";
+import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig(({ mode }) => {
   const {
@@ -28,9 +29,12 @@ export default defineConfig(({ mode }) => {
       !process.env.VITEST && reactRouter(),
       viteTsconfigPaths(),
       svgr(),
+      tailwindcss(),
     ],
     server: {
       port: FE_PORT,
+      host: true,
+      allowedHosts: true,
       proxy: {
         "/api": {
           target: API_URL,
@@ -51,6 +55,9 @@ export default defineConfig(({ mode }) => {
           // rewriteWsOrigin: true,
         },
       },
+      watch: {
+        ignored: ["**/node_modules/**", "**/.git/**"],
+      },
     },
     ssr: {
       noExternal: ["react-syntax-highlighter"],
@@ -59,7 +66,6 @@ export default defineConfig(({ mode }) => {
     test: {
       environment: "jsdom",
       setupFiles: ["vitest.setup.ts"],
-      reporters: "basic",
       exclude: [...configDefaults.exclude, "tests"],
       coverage: {
         reporter: ["text", "json", "html", "lcov", "text-summary"],

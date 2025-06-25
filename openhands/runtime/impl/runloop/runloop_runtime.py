@@ -6,13 +6,14 @@ from runloop_api_client import Runloop
 from runloop_api_client.types import DevboxView
 from runloop_api_client.types.shared_params import LaunchParameters
 
-from openhands.core.config import AppConfig
+from openhands.core.config import OpenHandsConfig
 from openhands.core.logger import openhands_logger as logger
 from openhands.events import EventStream
 from openhands.runtime.impl.action_execution.action_execution_client import (
     ActionExecutionClient,
 )
 from openhands.runtime.plugins import PluginRequirement
+from openhands.runtime.runtime_status import RuntimeStatus
 from openhands.runtime.utils.command import get_action_execution_server_startup_command
 from openhands.utils.tenacity_stop import stop_if_should_exit
 
@@ -27,7 +28,7 @@ class RunloopRuntime(ActionExecutionClient):
 
     def __init__(
         self,
-        config: AppConfig,
+        config: OpenHandsConfig,
         event_stream: EventStream,
         sid: str = 'default',
         plugins: list[PluginRequirement] | None = None,
@@ -56,7 +57,8 @@ class RunloopRuntime(ActionExecutionClient):
         # Buffer for container logs
         self._vscode_url: str | None = None
 
-    def _get_action_execution_server_host(self):
+    @property
+    def action_execution_server_url(self):
         return self.api_url
 
     @tenacity.retry(
@@ -87,13 +89,14 @@ class RunloopRuntime(ActionExecutionClient):
         # Add some additional commands based on our image
         # NB: start off as root, action_execution_server will ultimately choose user but expects all context
         # (ie browser) to be installed as root
-        start_command = (
+        # Convert start_command list to a single command string with additional setup
+        start_command_str = (
             'export MAMBA_ROOT_PREFIX=/openhands/micromamba && '
             'cd /openhands/code && '
-            + '/openhands/micromamba/bin/micromamba run -n openhands poetry config virtualenvs.path /openhands/poetry && '
+            '/openhands/micromamba/bin/micromamba run -n openhands poetry config virtualenvs.path /openhands/poetry && '
             + ' '.join(start_command)
         )
-        entrypoint = f"sudo bash -c '{start_command}'"
+        entrypoint = f"sudo bash -c '{start_command_str}'"
 
         devbox = self.runloop_api_client.devboxes.create(
             entrypoint=entrypoint,
@@ -112,7 +115,7 @@ class RunloopRuntime(ActionExecutionClient):
         return self._wait_for_devbox(devbox)
 
     async def connect(self):
-        self.send_status_message('STATUS$STARTING_RUNTIME')
+        self.set_runtime_status(RuntimeStatus.STARTING_RUNTIME)
 
         if self.attach_to_existing:
             active_devboxes = self.runloop_api_client.devboxes.list(
@@ -137,7 +140,7 @@ class RunloopRuntime(ActionExecutionClient):
         # End Runloop connect
         # NOTE: Copied from DockerRuntime
         logger.info('Waiting for client to become ready...')
-        self.send_status_message('STATUS$WAITING_FOR_CLIENT')
+        self.set_runtime_status(RuntimeStatus.STARTING_RUNTIME)
         self._wait_until_alive()
 
         if not self.attach_to_existing:
@@ -146,7 +149,7 @@ class RunloopRuntime(ActionExecutionClient):
         logger.info(
             f'Container initialized with plugins: {[plugin.name for plugin in self.plugins]}'
         )
-        self.send_status_message(' ')
+        self.set_runtime_status(RuntimeStatus.READY)
 
     @tenacity.retry(
         stop=tenacity.stop_after_delay(120) | stop_if_should_exit(),

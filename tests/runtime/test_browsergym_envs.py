@@ -29,7 +29,7 @@ def has_miniwob():
     reason='Requires browsergym-miniwob package to be installed',
 )
 def test_browsergym_eval_env(runtime_cls, temp_dir):
-    runtime = _load_runtime(
+    runtime, config = _load_runtime(
         temp_dir,
         runtime_cls=runtime_cls,
         run_as_openhands=False,  # need root permission to access file
@@ -43,7 +43,9 @@ def test_browsergym_eval_env(runtime_cls, temp_dir):
     )
 
     # Test browse
-    action = BrowseInteractiveAction(browser_actions=BROWSER_EVAL_GET_GOAL_ACTION)
+    action = BrowseInteractiveAction(
+        browser_actions=BROWSER_EVAL_GET_GOAL_ACTION, return_axtree=False
+    )
     logger.info(action, extra={'msg_type': 'ACTION'})
     obs = runtime.run_action(action)
     logger.info(obs, extra={'msg_type': 'OBSERVATION'})
@@ -54,7 +56,7 @@ def test_browsergym_eval_env(runtime_cls, temp_dir):
     assert 'from the list and click Submit' in obs.content
 
     # Make sure the browser can produce observation in eval env
-    action = BrowseInteractiveAction(browser_actions='noop()')
+    action = BrowseInteractiveAction(browser_actions='noop()', return_axtree=False)
     logger.info(action, extra={'msg_type': 'ACTION'})
     obs = runtime.run_action(action)
     logger.info(obs, extra={'msg_type': 'OBSERVATION'})
@@ -64,7 +66,9 @@ def test_browsergym_eval_env(runtime_cls, temp_dir):
     )
 
     # Make sure the rewards are working
-    action = BrowseInteractiveAction(browser_actions=BROWSER_EVAL_GET_REWARDS_ACTION)
+    action = BrowseInteractiveAction(
+        browser_actions=BROWSER_EVAL_GET_REWARDS_ACTION, return_axtree=False
+    )
     logger.info(action, extra={'msg_type': 'ACTION'})
     obs = runtime.run_action(action)
     logger.info(obs, extra={'msg_type': 'OBSERVATION'})
