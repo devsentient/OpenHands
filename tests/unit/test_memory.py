@@ -21,11 +21,13 @@ from openhands.events.observation.agent import (
 from openhands.events.serialization.observation import observation_from_dict
 from openhands.events.stream import EventStream
 from openhands.llm import LLM
+from openhands.llm.llm_registry import LLMRegistry
 from openhands.llm.metrics import Metrics
 from openhands.memory.memory import Memory
 from openhands.runtime.impl.action_execution.action_execution_client import (
     ActionExecutionClient,
 )
+from openhands.server.services.conversation_stats import ConversationStats
 from openhands.server.session.agent_session import AgentSession
 from openhands.storage.memory import InMemoryFileStore
 from openhands.utils.prompt import (
@@ -40,6 +42,12 @@ from openhands.utils.prompt import (
 def file_store():
     """Create a temporary file store for testing."""
     return InMemoryFileStore({})
+
+
+@pytest.fixture
+def mock_llm_registry(file_store):
+    """Create a mock LLMRegistry for testing."""
+    return MagicMock(spec=LLMRegistry)
 
 
 @pytest.fixture
@@ -97,21 +105,23 @@ async def test_memory_on_event_exception_handling(memory, event_stream, mock_age
     runtime.event_stream = event_stream
 
     # Mock Memory method to raise an exception
-    with patch.object(
-        memory, '_on_workspace_context_recall', side_effect=Exception('Test error')
+    with (
+        patch.object(
+            memory, '_on_workspace_context_recall', side_effect=Exception('Test error')
+        ),
+        patch('openhands.core.main.create_agent', return_value=mock_agent),
     ):
         state = await run_controller(
             config=OpenHandsConfig(),
             initial_user_action=MessageAction(content='Test message'),
             runtime=runtime,
             sid='test',
-            agent=mock_agent,
             fake_user_response_fn=lambda _: 'repeat',
             memory=memory,
         )
 
         # Verify that the controller's last error was set
-        assert state.iteration == 0
+        assert state.iteration_flag.current_value == 0
         assert state.agent_state == AgentState.ERROR
         assert state.last_error == 'Error: Exception'
 
@@ -126,23 +136,25 @@ async def test_memory_on_workspace_context_recall_exception_handling(
     runtime.event_stream = event_stream
 
     # Mock Memory._on_workspace_context_recall to raise an exception
-    with patch.object(
-        memory,
-        '_find_microagent_knowledge',
-        side_effect=Exception('Test error from _find_microagent_knowledge'),
+    with (
+        patch.object(
+            memory,
+            '_find_microagent_knowledge',
+            side_effect=Exception('Test error from _find_microagent_knowledge'),
+        ),
+        patch('openhands.core.main.create_agent', return_value=mock_agent),
     ):
         state = await run_controller(
             config=OpenHandsConfig(),
             initial_user_action=MessageAction(content='Test message'),
             runtime=runtime,
             sid='test',
-            agent=mock_agent,
             fake_user_response_fn=lambda _: 'repeat',
             memory=memory,
         )
 
         # Verify that the controller's last error was set
-        assert state.iteration == 0
+        assert state.iteration_flag.current_value == 0
         assert state.agent_state == AgentState.ERROR
         assert state.last_error == 'Error: Exception'
 
@@ -389,7 +401,7 @@ async def test_custom_secrets_descriptions():
     }
 
     # Set runtime info with custom secrets
-    memory.set_runtime_info(mock_runtime, custom_secrets)
+    memory.set_runtime_info(mock_runtime, custom_secrets, '/workspace')
 
     # Set repository info
     memory.set_repository_info('test-owner/test-repo', '/workspace/test-repo')
@@ -448,11 +460,14 @@ def test_custom_secrets_descriptions_serialization(prompt_dir):
         available_hosts={'test-host.example.com': 8080},
         additional_agent_instructions='Test instructions',
         custom_secrets_descriptions=custom_secrets,
+        working_dir='/workspace',
     )
 
     # Create a RepositoryInfo
     repository_info = RepositoryInfo(
-        repo_name='test-owner/test-repo', repo_directory='/workspace/test-repo'
+        repo_name='test-owner/test-repo',
+        repo_directory='/workspace/test-repo',
+        branch_name='main',
     )
 
     conversation_instructions = ConversationInstructions(
@@ -590,12 +605,14 @@ REPOSITORY INSTRUCTIONS: This is the second test repository.
 
 @pytest.mark.asyncio
 async def test_conversation_instructions_plumbed_to_memory(
-    mock_agent, event_stream, file_store
+    mock_agent, event_stream, file_store, mock_llm_registry
 ):
     # Setup
     session = AgentSession(
         sid='test-session',
         file_store=file_store,
+        llm_registry=mock_llm_registry,
+        conversation_stats=ConversationStats(file_store, 'test-session', None),
     )
 
     # Create a mock runtime and set it up

@@ -19,6 +19,7 @@ from openhands.core.exceptions import (
 from openhands.core.logger import openhands_logger as logger
 from openhands.events import EventStream
 from openhands.integrations.provider import PROVIDER_TOKEN_TYPE
+from openhands.llm.llm_registry import LLMRegistry
 from openhands.runtime.builder.remote import RemoteRuntimeBuilder
 from openhands.runtime.impl.action_execution.action_execution_client import (
     ActionExecutionClient,
@@ -51,6 +52,7 @@ class RemoteRuntime(ActionExecutionClient):
         self,
         config: OpenHandsConfig,
         event_stream: EventStream,
+        llm_registry: LLMRegistry,
         sid: str = 'default',
         plugins: list[PluginRequirement] | None = None,
         env_vars: dict[str, str] | None = None,
@@ -64,6 +66,7 @@ class RemoteRuntime(ActionExecutionClient):
         super().__init__(
             config,
             event_stream,
+            llm_registry,
             sid,
             plugins,
             env_vars,
@@ -140,7 +143,6 @@ class RemoteRuntime(ActionExecutionClient):
             )
         else:
             self.log('info', 'No existing runtime found, starting a new one')
-            self.set_runtime_status(RuntimeStatus.BUILDING_RUNTIME)
             if self.config.sandbox.runtime_container_image is None:
                 self.log(
                     'info',
@@ -160,7 +162,6 @@ class RemoteRuntime(ActionExecutionClient):
         assert self.runtime_url is not None, (
             'Runtime URL is not set. This should never happen.'
         )
-        self.set_runtime_status(RuntimeStatus.STARTING_RUNTIME)
         if not self.attach_to_existing:
             self.log('info', 'Waiting for runtime to be alive...')
         self._wait_until_alive()
@@ -221,6 +222,7 @@ class RemoteRuntime(ActionExecutionClient):
 
     def _build_runtime(self) -> None:
         self.log('debug', f'Building RemoteRuntime config:\n{self.config}')
+        self.set_runtime_status(RuntimeStatus.BUILDING_RUNTIME)
         response = self._send_runtime_api_request(
             'GET',
             f'{self.config.sandbox.remote_runtime_api_url}/registry_prefix',
@@ -251,6 +253,7 @@ class RemoteRuntime(ActionExecutionClient):
             platform=self.config.sandbox.platform,
             extra_deps=self.config.sandbox.runtime_extra_deps,
             force_rebuild=self.config.sandbox.force_rebuild_runtime,
+            enable_browser=self.config.enable_browser,
         )
 
         response = self._send_runtime_api_request(
@@ -265,6 +268,7 @@ class RemoteRuntime(ActionExecutionClient):
 
     def _start_runtime(self) -> None:
         # Prepare the request body for the /start endpoint
+        self.set_runtime_status(RuntimeStatus.STARTING_RUNTIME)
         command = self.get_action_execution_server_startup_command()
         environment: dict[str, str] = {}
         if self.config.debug or os.environ.get('DEBUG', 'false').lower() == 'true':
@@ -363,7 +367,7 @@ class RemoteRuntime(ActionExecutionClient):
             self._session_api_key = start_response['session_api_key']
             self.log(
                 'debug',
-                f'Session API key setted',
+                'Session API key set',
             )
 
     @property

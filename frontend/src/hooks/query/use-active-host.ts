@@ -22,7 +22,7 @@ export const useActiveHost = () => {
       disableToast: true,
     },
   });
-
+  
   console.log(
     "useActiveHost: %c%s",
     "background: #444; color: #ffeb3b; font-weight: bold; padding: 2px 4px; border-radius: 4px;",
