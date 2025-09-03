@@ -14,6 +14,7 @@ export const useActiveHost = () => {
     queryKey: [conversationId, "hosts"],
     queryFn: async () => {
       const hosts = await OpenHands.getWebHosts(conversationId);
+      console.log("useActiveHost: Fetched hosts from API:", hosts);
       return { hosts };
     },
     enabled: runtimeIsReady && !!conversationId,
@@ -22,6 +23,8 @@ export const useActiveHost = () => {
       disableToast: true,
     },
   });
+
+  console.log("useActiveHost: Runtime ready:", runtimeIsReady, "Conversation ID:", conversationId);
 
   console.log(
     "useActiveHost: %c%s",
@@ -50,8 +53,11 @@ export const useActiveHost = () => {
   const appsData = apps.map((app) => app.data);
 
   React.useEffect(() => {
+    console.log("useActiveHost: Apps data:", appsData);
     const successfulApp = appsData.find((app) => app);
+    console.log("useActiveHost: Successful app found:", successfulApp);
     setActiveHost(successfulApp || null);
+    console.log("useActiveHost: Active host set to:", successfulApp || null);
   }, [appsData]);
 
   return { activeHost };
