@@ -37,9 +37,25 @@ export const useActiveHost = () => {
       queryKey: [conversationId, "hosts", host],
       queryFn: async () => {
         try {
-          await axios.get(host);
+          console.log(`useActiveHost: Testing host: ${host}`);
+          const response = await axios.get(host);
+          console.log(`useActiveHost: Host ${host} SUCCESS - Status: ${response.status}`);
           return host;
-        } catch (e) {
+        } catch (e: any) {
+          // Check if it's a 401 (Unauthorized) - this means service is running
+          if (e.response?.status === 401) {
+            console.log(`useActiveHost: Host ${host} SUCCESS (401 Unauthorized) - Service is running`);
+            return host;
+          }
+          
+          console.error(`useActiveHost: Host ${host} FAILED:`, e);
+          console.error(`useActiveHost: Error details for ${host}:`, {
+            message: e.message,
+            code: e.code,
+            status: e.response?.status,
+            statusText: e.response?.statusText,
+            url: e.config?.url
+          });
           return "";
         }
       },
@@ -50,11 +66,11 @@ export const useActiveHost = () => {
     })),
   });
 
-  const appsData = apps.map((app) => app.data);
+  const appsData = apps.map((app: any) => app.data);
 
   React.useEffect(() => {
     console.log("useActiveHost: Apps data:", appsData);
-    const successfulApp = appsData.find((app) => app);
+    const successfulApp = appsData.find((app: any) => app);
     console.log("useActiveHost: Successful app found:", successfulApp);
     setActiveHost(successfulApp || null);
     console.log("useActiveHost: Active host set to:", successfulApp || null);
