@@ -1,6 +1,8 @@
 import os
 
-from pydantic import BaseModel, Field, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+
+from openhands.core.logger import openhands_logger as logger
 
 
 class SandboxConfig(BaseModel):
@@ -18,6 +20,7 @@ class SandboxConfig(BaseModel):
         remote_runtime_enable_retries: Whether to enable retries (on recoverable errors like requests.ConnectionError) for the remote runtime API requests.
         enable_auto_lint: Whether to enable auto-lint.
         use_host_network: Whether to use the host network.
+        additional_networks: A list of additional Docker networks to connect to
         runtime_binding_address: The binding address for the runtime ports.  It specifies which network interface on the host machine Docker should bind the runtime ports to.
         initialize_plugins: Whether to initialize plugins.
         force_rebuild_runtime: Whether to force rebuild the runtime image.
@@ -54,6 +57,7 @@ class SandboxConfig(BaseModel):
     )
     runtime_container_image: str | None = Field(default=None)
     user_id: int = Field(default=os.getuid() if hasattr(os, 'getuid') else 1000)
+    logger.debug(f'SandboxConfig user_id default: {user_id}')
     timeout: int = Field(default=120)
     remote_runtime_init_timeout: int = Field(default=180)
     remote_runtime_api_timeout: int = Field(default=10)
@@ -65,6 +69,7 @@ class SandboxConfig(BaseModel):
         default=False
     )  # once enabled, OpenHands would lint files after editing
     use_host_network: bool = Field(default=False)
+    additional_networks: list[str] = Field(default=[])
     runtime_binding_address: str = Field(default='0.0.0.0')
     runtime_extra_build_args: list[str] | None = Field(default=None)
     initialize_plugins: bool = Field(default=True)
@@ -88,12 +93,12 @@ class SandboxConfig(BaseModel):
         description="Volume mounts in the format 'host_path:container_path[:mode]', e.g. '/my/host/dir:/workspace:rw'. Multiple mounts can be specified using commas, e.g. '/path1:/workspace/path1,/path2:/workspace/path2:ro'",
     )
 
-    model_config = {'extra': 'forbid'}
+    cuda_visible_devices: str | None = Field(default=None)
+    model_config = ConfigDict(extra='forbid')
 
     @classmethod
     def from_toml_section(cls, data: dict) -> dict[str, 'SandboxConfig']:
-        """
-        Create a mapping of SandboxConfig instances from a toml dictionary representing the [sandbox] section.
+        """Create a mapping of SandboxConfig instances from a toml dictionary representing the [sandbox] section.
 
         The configuration is built from all keys in data.
 

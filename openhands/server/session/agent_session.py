@@ -21,13 +21,15 @@ from openhands.integrations.provider import (
     PROVIDER_TOKEN_TYPE,
     ProviderHandler,
 )
+from openhands.llm.llm_registry import LLMRegistry
 from openhands.mcp import add_mcp_tools_to_agent
 from openhands.memory.memory import Memory
 from openhands.microagent.microagent import BaseMicroagent
 from openhands.runtime import get_runtime_cls
 from openhands.runtime.base import Runtime
 from openhands.runtime.impl.remote.remote_runtime import RemoteRuntime
-from openhands.security import SecurityAnalyzer, options
+from openhands.runtime.runtime_status import RuntimeStatus
+from openhands.server.services.conversation_stats import ConversationStats
 from openhands.storage.data_models.user_secrets import UserSecrets
 from openhands.storage.files import FileStore
 from openhands.utils.async_utils import EXECUTOR, call_sync_from_async
@@ -47,10 +49,11 @@ class AgentSession:
     sid: str
     user_id: str | None
     event_stream: EventStream
+    llm_registry: LLMRegistry
     file_store: FileStore
     controller: AgentController | None = None
     runtime: Runtime | None = None
-    security_analyzer: SecurityAnalyzer | None = None
+
     memory: Memory | None = None
     _starting: bool = False
     _started_at: float = 0
@@ -62,6 +65,8 @@ class AgentSession:
         self,
         sid: str,
         file_store: FileStore,
+        llm_registry: LLMRegistry,
+        conversation_stats: ConversationStats,
         status_callback: Callable | None = None,
         user_id: str | None = None,
     ) -> None:
@@ -71,7 +76,6 @@ class AgentSession:
         - sid: The session ID
         - file_store: Instance of the FileStore
         """
-
         self.sid = sid
         self.event_stream = EventStream(sid, file_store, user_id)
         self.file_store = file_store
@@ -80,6 +84,8 @@ class AgentSession:
         self.logger = OpenHandsLoggerAdapter(
             extra={'session_id': sid, 'user_id': user_id}
         )
+        self.llm_registry = llm_registry
+        self.conversation_stats = conversation_stats
 
     async def start(
         self,
@@ -123,10 +129,9 @@ class AgentSession:
         runtime_connected = False
         restored_state = False
         custom_secrets_handler = UserSecrets(
-            custom_secrets=custom_secrets if custom_secrets else {}
+            custom_secrets=custom_secrets if custom_secrets else {}  # type: ignore[arg-type]
         )
         try:
-            self._create_security_analyzer(config.security.security_analyzer)
             runtime_connected = await self._create_runtime(
                 runtime_name=runtime_name,
                 config=config,
@@ -151,14 +156,16 @@ class AgentSession:
             self.memory = await self._create_memory(
                 selected_repository=selected_repository,
                 repo_directory=repo_directory,
+                selected_branch=selected_branch,
                 conversation_instructions=conversation_instructions,
                 custom_secrets_descriptions=custom_secrets_handler.get_custom_secrets_descriptions(),
+                working_dir=config.workspace_mount_path_in_sandbox,
             )
 
             # NOTE: this needs to happen before controller is created
             # so MCP tools can be included into the SystemMessageAction
             if self.runtime and runtime_connected and agent.config.enable_mcp:
-                await add_mcp_tools_to_agent(agent, self.runtime, self.memory, config)
+                await add_mcp_tools_to_agent(agent, self.runtime, self.memory)
 
             if replay_json:
                 initial_message = self._run_replay(
@@ -197,23 +204,21 @@ class AgentSession:
         finally:
             self._starting = False
             success = finished and runtime_connected
-            duration = (time.time() - started_at)
+            duration = time.time() - started_at
 
             log_metadata = {
                 'signal': 'agent_session_start',
                 'success': success,
                 'duration': duration,
-                'restored_state': restored_state
+                'restored_state': restored_state,
             }
             if success:
                 self.logger.info(
-                    f'Agent session start succeeded in {duration}s',
-                    extra=log_metadata
+                    f'Agent session start succeeded in {duration}s', extra=log_metadata
                 )
             else:
                 self.logger.error(
-                    f'Agent session start failed in {duration}s',
-                    extra=log_metadata
+                    f'Agent session start failed in {duration}s', extra=log_metadata
                 )
 
     async def close(self) -> None:
@@ -234,13 +239,10 @@ class AgentSession:
         if self.event_stream is not None:
             self.event_stream.close()
         if self.controller is not None:
-            end_state = self.controller.get_state()
-            end_state.save_to_session(self.sid, self.file_store, self.user_id)
+            self.controller.save_state()
             await self.controller.close()
         if self.runtime is not None:
             EXECUTOR.submit(self.runtime.close)
-        if self.security_analyzer is not None:
-            await self.security_analyzer.close()
 
     def _run_replay(
         self,
@@ -253,8 +255,7 @@ class AgentSession:
         agent_to_llm_config: dict[str, LLMConfig] | None,
         agent_configs: dict[str, AgentConfig] | None,
     ) -> MessageAction:
-        """
-        Replays a trajectory from a JSON file. Note that once the replay session
+        """Replays a trajectory from a JSON file. Note that once the replay session
         finishes, the controller will continue to run with further user instructions,
         so we still need to pass llm configs, budget, etc., even though the replay
         itself does not call LLM or cost money.
@@ -273,31 +274,22 @@ class AgentSession:
         assert isinstance(replay_events[0], MessageAction)
         return replay_events[0]
 
-    def _create_security_analyzer(self, security_analyzer: str | None) -> None:
-        """Creates a SecurityAnalyzer instance that will be used to analyze the agent actions
-
-        Parameters:
-        - security_analyzer: The name of the security analyzer to use
-        """
-
-        if security_analyzer:
-            self.logger.debug(f'Using security analyzer: {security_analyzer}')
-            self.security_analyzer = options.SecurityAnalyzers.get(
-                security_analyzer, SecurityAnalyzer
-            )(self.event_stream)
-
     def override_provider_tokens_with_custom_secret(
         self,
         git_provider_tokens: PROVIDER_TOKEN_TYPE | None,
         custom_secrets: CUSTOM_SECRETS_TYPE | None,
     ):
         if git_provider_tokens and custom_secrets:
-            tokens = dict(git_provider_tokens)
-            for provider, _ in tokens.items():
-                token_name = ProviderHandler.get_provider_env_key(provider)
-                if token_name in custom_secrets or token_name.upper() in custom_secrets:
-                    del tokens[provider]
-
+            # Use dictionary comprehension to avoid modifying dictionary during iteration
+            tokens = {
+                provider: token
+                for provider, token in git_provider_tokens.items()
+                if not (
+                    ProviderHandler.get_provider_env_key(provider) in custom_secrets
+                    or ProviderHandler.get_provider_env_key(provider).upper()
+                    in custom_secrets
+                )
+            }
             return MappingProxyType(tokens)
         return git_provider_tokens
 
@@ -321,11 +313,10 @@ class AgentSession:
         Return True on successfully connected, False if could not connect.
         Raises if already created, possibly in other situations.
         """
-
         if self.runtime is not None:
             raise RuntimeError('Runtime already created')
 
-        custom_secrets_handler = UserSecrets(custom_secrets=custom_secrets or {})
+        custom_secrets_handler = UserSecrets(custom_secrets=custom_secrets or {})  # type: ignore[arg-type]
         env_vars = custom_secrets_handler.get_env_vars()
 
         self.logger.debug(f'Initializing runtime `{runtime_name}` now...')
@@ -333,21 +324,20 @@ class AgentSession:
         if runtime_cls == RemoteRuntime:
             # If provider tokens is passed in custom secrets, then remove provider from provider tokens
             # We prioritize provider tokens set in custom secrets
-            provider_tokens_without_gitlab = (
-                self.override_provider_tokens_with_custom_secret(
-                    git_provider_tokens, custom_secrets
-                )
+            overrided_tokens = self.override_provider_tokens_with_custom_secret(
+                git_provider_tokens, custom_secrets
             )
 
             self.runtime = runtime_cls(
                 config=config,
                 event_stream=self.event_stream,
+                llm_registry=self.llm_registry,
                 sid=self.sid,
                 plugins=agent.sandbox_plugins,
                 status_callback=self._status_callback,
                 headless_mode=False,
                 attach_to_existing=False,
-                git_provider_tokens=provider_tokens_without_gitlab,
+                git_provider_tokens=overrided_tokens,
                 env_vars=env_vars,
                 user_id=self.user_id,
             )
@@ -362,26 +352,23 @@ class AgentSession:
             self.runtime = runtime_cls(
                 config=config,
                 event_stream=self.event_stream,
+                llm_registry=self.llm_registry,
                 sid=self.sid,
                 plugins=agent.sandbox_plugins,
                 status_callback=self._status_callback,
                 headless_mode=False,
                 attach_to_existing=False,
                 env_vars=env_vars,
+                git_provider_tokens=git_provider_tokens,
             )
 
-        # FIXME: this sleep is a terrible hack.
-        # This is to give the websocket a second to connect, so that
-        # the status messages make it through to the frontend.
-        # We should find a better way to plumb status messages through.
-        await asyncio.sleep(1)
         try:
             await self.runtime.connect()
         except AgentRuntimeUnavailableError as e:
             self.logger.error(f'Runtime initialization failed: {e}')
             if self._status_callback:
                 self._status_callback(
-                    'error', 'STATUS$ERROR_RUNTIME_DISCONNECTED', str(e)
+                    'error', RuntimeStatus.ERROR_RUNTIME_DISCONNECTED, str(e)
                 )
             return False
 
@@ -419,7 +406,6 @@ class AgentSession:
         Returns:
             Agent Controller and a bool indicating if state was restored from a previous conversation
         """
-
         if self.controller is not None:
             raise RuntimeError('Controller already created')
         if self.runtime is None:
@@ -440,10 +426,13 @@ class AgentSession:
         initial_state = self._maybe_restore_state()
         controller = AgentController(
             sid=self.sid,
+            user_id=self.user_id,
+            file_store=self.file_store,
             event_stream=self.event_stream,
+            conversation_stats=self.conversation_stats,
             agent=agent,
-            max_iterations=int(max_iterations),
-            max_budget_per_task=max_budget_per_task,
+            iteration_delta=int(max_iterations),
+            budget_per_task_delta=max_budget_per_task,
             agent_to_llm_config=agent_to_llm_config,
             agent_configs=agent_configs,
             confirmation_mode=confirmation_mode,
@@ -451,6 +440,7 @@ class AgentSession:
             status_callback=self._status_callback,
             initial_state=initial_state,
             replay_events=replay_events,
+            security_analyzer=self.runtime.security_analyzer if self.runtime else None,
         )
 
         return (controller, initial_state is not None)
@@ -459,8 +449,10 @@ class AgentSession:
         self,
         selected_repository: str | None,
         repo_directory: str | None,
+        selected_branch: str | None,
         conversation_instructions: str | None,
         custom_secrets_descriptions: dict[str, str],
+        working_dir: str,
     ) -> Memory:
         memory = Memory(
             event_stream=self.event_stream,
@@ -470,7 +462,9 @@ class AgentSession:
 
         if self.runtime:
             # sets available hosts and other runtime info
-            memory.set_runtime_info(self.runtime, custom_secrets_descriptions)
+            memory.set_runtime_info(
+                self.runtime, custom_secrets_descriptions, working_dir
+            )
             memory.set_conversation_instructions(conversation_instructions)
 
             # loads microagents from repo/.openhands/microagents
@@ -481,8 +475,19 @@ class AgentSession:
             memory.load_user_workspace_microagents(microagents)
 
             if selected_repository and repo_directory:
-                memory.set_repository_info(selected_repository, repo_directory)
+                memory.set_repository_info(
+                    selected_repository, repo_directory, selected_branch
+                )
         return memory
+
+    def get_state(self) -> AgentState | None:
+        controller = self.controller
+        if controller:
+            return controller.state.agent_state
+        if time.time() > self._started_at + WAIT_TIME_BEFORE_CLOSE:
+            # If 5 minutes have elapsed and we still don't have a controller, something has gone wrong
+            return AgentState.ERROR
+        return None
 
     def _maybe_restore_state(self) -> State | None:
         """Helper method to handle state restore logic."""
@@ -503,15 +508,6 @@ class AgentSession:
             else:
                 self.logger.debug('No events found, no state to restore')
         return restored_state
-
-    def get_state(self) -> AgentState | None:
-        controller = self.controller
-        if controller:
-            return controller.state.agent_state
-        if time.time() > self._started_at + WAIT_TIME_BEFORE_CLOSE:
-            # If 5 minutes have elapsed and we still don't have a controller, something has gone wrong
-            return AgentState.ERROR
-        return None
 
     def is_closed(self) -> bool:
         return self._closed
