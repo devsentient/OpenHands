@@ -51,7 +51,7 @@ export const useActiveHost = () => {
 
   React.useEffect(() => {
     const successfulApp = appsData.find((app) => app);
-    setActiveHost(successfulApp || "");
+    setActiveHost(successfulApp || null);
   }, [appsData]);
 
   return { activeHost };
