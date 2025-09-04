@@ -34,15 +34,14 @@ export const useActiveHost = () => {
           return host;
         } catch (e: any) {
           console.log(`Host ${host} ERROR - Status: ${e.response?.status}, Code: ${e.code}, Message: ${e.message}`);
-          // Only treat as failure for 500+ server errors
-          if (e.response?.status >= 500) {
-            console.log(`Host ${host} FAILED - Server error (${e.response.status})`);
-            return "";
+          // Only allow 401 (Unauthorized) as success - service is running but needs auth
+          if (e.response?.status === 401) {
+            console.log(`Host ${host} SUCCESS - 401 Unauthorized (service running)`);
+            return host;
           }
-          // For all other errors (401, 403, 404, CORS, etc.) treat as success
-          // since the service exists and the iframe can handle it
-          console.log(`Host ${host} SUCCESS - Service exists despite error (${e.response?.status || e.code})`);
-          return host;
+          // All other errors are failures
+          console.log(`Host ${host} FAILED - Error: ${e.response?.status || e.code}`);
+          return "";
         }
       },
       // refetchInterval: 3000,
