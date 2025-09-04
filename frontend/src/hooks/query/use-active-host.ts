@@ -32,9 +32,9 @@ export const useActiveHost = () => {
           await axios.get(host);
           return host;
         } catch (e: any) {
-          // Allow all 4xx errors as success - service exists but has client-side issues
-          if (e.response?.status >= 400 && e.response?.status < 500) {
-            console.log(`Host ${host} SUCCESS - 4xx error (${e.response.status}) - service exists`);
+          // Allow CORS/Network errors as success - service exists but CORS blocked
+          if (e.code === 'ERR_NETWORK' && e.message === 'Network Error') {
+            console.log(`Host ${host} SUCCESS - CORS blocked but service exists`);
             return host;
           }
           return "";
