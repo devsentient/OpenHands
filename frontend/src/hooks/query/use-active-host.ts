@@ -23,6 +23,10 @@ export const useActiveHost = () => {
     },
   });
 
+  console.log("useActiveHost: Runtime ready:", runtimeIsReady, "Conversation ID:", conversationId);
+  console.log("useActiveHost: Query enabled:", runtimeIsReady && !!conversationId);
+  console.log("useActiveHost: Hosts data:", data.hosts);
+
   const apps = useQueries({
     queries: data.hosts.map((host) => ({
       queryKey: [conversationId, "hosts", host],
@@ -34,9 +38,14 @@ export const useActiveHost = () => {
           return host;
         } catch (e: any) {
           console.log(`Host ${host} ERROR - Status: ${e.response?.status}, Code: ${e.code}, Message: ${e.message}`);
-          // Only allow 401 (Unauthorized) as success - service is running but needs auth
+          // Allow 401 (Unauthorized) as success - service is running but needs auth
           if (e.response?.status === 401) {
             console.log(`Host ${host} SUCCESS - 401 Unauthorized (service running)`);
+            return host;
+          }
+          // Also allow CORS/Network errors - likely means service exists but CORS blocked
+          if (e.code === 'ERR_NETWORK' && e.message === 'Network Error') {
+            console.log(`Host ${host} SUCCESS - CORS blocked but service likely exists`);
             return host;
           }
           // All other errors are failures
