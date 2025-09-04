@@ -28,15 +28,20 @@ export const useActiveHost = () => {
       queryKey: [conversationId, "hosts", host],
       queryFn: async () => {
         try {
-          await axios.get(host);
+          console.log(`Testing host: ${host}`);
+          const response = await axios.get(host);
+          console.log(`Host ${host} SUCCESS - Status: ${response.status}`);
           return host;
         } catch (e: any) {
+          console.log(`Host ${host} ERROR - Status: ${e.response?.status}, Code: ${e.code}, Message: ${e.message}`);
           // Only treat as failure for 500+ server errors
           if (e.response?.status >= 500) {
+            console.log(`Host ${host} FAILED - Server error (${e.response.status})`);
             return "";
           }
           // For all other errors (401, 403, 404, CORS, etc.) treat as success
           // since the service exists and the iframe can handle it
+          console.log(`Host ${host} SUCCESS - Service exists despite error (${e.response?.status || e.code})`);
           return host;
         }
       },
