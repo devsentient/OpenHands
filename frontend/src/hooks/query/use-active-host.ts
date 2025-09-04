@@ -48,6 +48,12 @@ export const useActiveHost = () => {
             return host;
           }
           
+          // Check if it's a CORS/Network error - likely means service exists but blocks CORS
+          if (e.code === 'ERR_NETWORK' && e.message === 'Network Error') {
+            console.log(`useActiveHost: Host ${host} SUCCESS (CORS blocked) - Service likely exists`);
+            return host;
+          }
+          
           console.error(`useActiveHost: Host ${host} FAILED:`, e);
           console.error(`useActiveHost: Error details for ${host}:`, {
             message: e.message,
