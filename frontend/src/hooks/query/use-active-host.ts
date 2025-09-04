@@ -23,7 +23,6 @@ export const useActiveHost = () => {
     },
   });
 
-
   const apps = useQueries({
     queries: data.hosts.map((host) => ({
       queryKey: [conversationId, "hosts", host],
@@ -31,12 +30,7 @@ export const useActiveHost = () => {
         try {
           await axios.get(host);
           return host;
-        } catch (e: any) {
-          // Allow CORS/Network errors as success - service exists but CORS blocked
-          if (e.code === 'ERR_NETWORK' && e.message === 'Network Error') {
-            console.log(`Host ${host} SUCCESS - CORS blocked but service exists`);
-            return host;
-          }
+        } catch (e) {
           return "";
         }
       },
@@ -47,11 +41,11 @@ export const useActiveHost = () => {
     })),
   });
 
-  const appsData = apps.map((app: any) => app.data);
+  const appsData = apps.map((app) => app.data);
 
   React.useEffect(() => {
-    const successfulApp = appsData.find((app: any) => app);
-    setActiveHost(successfulApp || null);
+    const successfulApp = appsData.find((app) => app);
+    setActiveHost(successfulApp || "");
   }, [appsData]);
 
   return { activeHost };
