@@ -23,33 +23,20 @@ export const useActiveHost = () => {
     },
   });
 
-  console.log("useActiveHost: Runtime ready:", runtimeIsReady, "Conversation ID:", conversationId);
-  console.log("useActiveHost: Query enabled:", runtimeIsReady && !!conversationId);
-  console.log("useActiveHost: Hosts data:", data.hosts);
 
   const apps = useQueries({
     queries: data.hosts.map((host) => ({
       queryKey: [conversationId, "hosts", host],
       queryFn: async () => {
         try {
-          console.log(`Testing host: ${host}`);
-          const response = await axios.get(host);
-          console.log(`Host ${host} SUCCESS - Status: ${response.status}`);
+          await axios.get(host);
           return host;
         } catch (e: any) {
-          console.log(`Host ${host} ERROR - Status: ${e.response?.status}, Code: ${e.code}, Message: ${e.message}`);
-          // Allow 401 (Unauthorized) as success - service is running but needs auth
-          if (e.response?.status === 401) {
-            console.log(`Host ${host} SUCCESS - 401 Unauthorized (service running)`);
+          // Allow all 4xx errors as success - service exists but has client-side issues
+          if (e.response?.status >= 400 && e.response?.status < 500) {
+            console.log(`Host ${host} SUCCESS - 4xx error (${e.response.status}) - service exists`);
             return host;
           }
-          // Also allow CORS/Network errors - likely means service exists but CORS blocked
-          if (e.code === 'ERR_NETWORK' && e.message === 'Network Error') {
-            console.log(`Host ${host} SUCCESS - CORS blocked but service likely exists`);
-            return host;
-          }
-          // All other errors are failures
-          console.log(`Host ${host} FAILED - Error: ${e.response?.status || e.code}`);
           return "";
         }
       },
@@ -60,11 +47,11 @@ export const useActiveHost = () => {
     })),
   });
 
-  const appsData = apps.map((app) => app.data);
+  const appsData = apps.map((app: any) => app.data);
 
   React.useEffect(() => {
-    const successfulApp = appsData.find((app) => app);
-    setActiveHost(successfulApp || "");
+    const successfulApp = appsData.find((app: any) => app);
+    setActiveHost(successfulApp || null);
   }, [appsData]);
 
   return { activeHost };
