@@ -242,15 +242,10 @@ class OpenHands {
    */
   static async getWebHosts(conversationId: string): Promise<string[]> {
     const url = `${this.getConversationUrl(conversationId)}/web-hosts`;
-    console.log("getWebHosts: Requesting URL:", url);
     const response = await openHands.get(url, {
       headers: this.getConversationHeaders(),
     });
-    console.log("getWebHosts: API response:", response.data);
-    console.log("getWebHosts: Hosts object:", response.data.hosts);
-    const hosts = Object.keys(response.data.hosts);
-    console.log("getWebHosts: Extracted host URLs:", hosts);
-    return hosts;
+    return Object.keys(response.data.hosts);
   }
 
   /**
