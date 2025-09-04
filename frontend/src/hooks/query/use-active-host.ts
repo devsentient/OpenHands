@@ -30,8 +30,14 @@ export const useActiveHost = () => {
         try {
           await axios.get(host);
           return host;
-        } catch (e) {
-          return "";
+        } catch (e: any) {
+          // Only treat as failure for 500+ server errors
+          if (e.response?.status >= 500) {
+            return "";
+          }
+          // For all other errors (401, 403, 404, CORS, etc.) treat as success
+          // since the service exists and the iframe can handle it
+          return host;
         }
       },
       // refetchInterval: 3000,
