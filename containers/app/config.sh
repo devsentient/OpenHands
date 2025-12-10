@@ -1,4 +1,4 @@
-DOCKER_REGISTRY=ghcr.io
+DOCKER_REGISTRY=gcr.io
 DOCKER_ORG=openhands
 DOCKER_IMAGE=openhands
 DOCKER_BASE_DIR="."

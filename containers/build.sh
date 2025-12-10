@@ -33,6 +33,7 @@ while [[ $# -gt 0 ]]; do
         *) usage ;;
     esac
 done
+
 # Check if required arguments are provided
 if [[ -z "$image_name" ]]; then
     echo "Error: Image name is required."
